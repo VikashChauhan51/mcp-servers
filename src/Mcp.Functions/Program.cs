@@ -1,7 +1,8 @@
-using Mcp.Functions;
+using Mcp.Functions.Tools.HelloTools;
+using Mcp.Functions.Tools.SqlTools;
+using Mcp.Functions.Tools.TransactionTools;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.Hosting;
-using static Mcp.Functions.ToolsInformation;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
@@ -14,6 +15,12 @@ builder.EnableMcpToolMetadata();
 //     .ConfigureFunctionsApplicationInsights();
 
 builder
-    .ConfigureMcpTool(HelloToolName);
+    .ConfigureMcpTool(HelloTools.ToolName);
+
+builder.ConfigureMcpTool(SqlTools.ToolName)
+    .WithProperty(SqlTools.PropertyName, SqlTools.PropertyType, SqlTools.PropertyDescription);
+
+builder.ConfigureMcpTool(TransactionTools.ToolName)
+    .WithProperty(TransactionTools.PropertyName, TransactionTools.PropertyType, TransactionTools.PropertyDescription);
 
 builder.Build().Run();
