@@ -17,8 +17,8 @@ builder.EnableMcpToolMetadata();
 builder
     .ConfigureMcpTool(HelloTools.ToolName);
 
-builder.ConfigureMcpTool(SqlTools.ToolName)
-    .WithProperty(SqlTools.PropertyName, SqlTools.PropertyType, SqlTools.PropertyDescription);
+builder.ConfigureMcpTool(SqlQueryTools.ToolName)
+    .WithProperty(SqlQueryTools.PropertyName, SqlQueryTools.PropertyType, SqlQueryTools.PropertyDescription);
 
 builder.ConfigureMcpTool(TransactionTools.ToolName)
     .WithProperty(TransactionTools.PropertyName, TransactionTools.PropertyType, TransactionTools.PropertyDescription);
