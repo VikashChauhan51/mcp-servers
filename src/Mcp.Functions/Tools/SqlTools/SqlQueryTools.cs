@@ -1,13 +1,15 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Dapper;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Extensions.Mcp;
-using Microsoft.Extensions.Logging;
-using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
+using Npgsql;
+using System.Text.RegularExpressions;
 
 namespace Mcp.Functions.Tools.SqlTools;
 
-public class SqlQueryTools(ILogger<SqlQueryTools> logger)
+public class SqlQueryTools(ILogger<SqlQueryTools> logger, NpgsqlConnection connection)
 {
     // Tool metadata
     public const string ToolName = "ExecuteSql";
@@ -53,22 +55,18 @@ public class SqlQueryTools(ILogger<SqlQueryTools> logger)
 
         try
         {
-            using var connection = new SqlConnection("YourConnectionStringHere");
-            await connection.OpenAsync();
-            using var command = new SqlCommand(query, connection);
-            using var reader = await command.ExecuteReaderAsync();
-            var results = new List<Dictionary<string, object>>();
-            while (await reader.ReadAsync())
-            {
-                var row = new Dictionary<string, object>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    row[reader.GetName(i)] = reader.GetValue(i);
-                }
-                results.Add(row);
-            }
+            if (connection.State != System.Data.ConnectionState.Open)
+                await connection.OpenAsync();
+
+            // Use Dapper to execute the query and get results as a list of dictionaries
+            var results = (await connection.QueryAsync(query))
+                .Select(row => (IDictionary<string, object>)row)
+                .Select(dict => dict.ToDictionary(kv => kv.Key, kv => kv.Value))
+                .ToList();
+
             if (results.Count == 0)
                 return "✅ Query executed successfully. No rows returned.";
+
             // Convert results to a simple string table for output
             var output = new System.Text.StringBuilder();
             var columns = results[0].Keys;

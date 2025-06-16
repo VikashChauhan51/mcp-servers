@@ -1,14 +1,19 @@
+using Dapper;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Extensions.Mcp;
-using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Mcp.Functions.Tools.SqlTools;
 
-public class SqlListColumnTools(ILogger<SqlListColumnTools> logger)
+public class SqlListColumnTools(ILogger<SqlListColumnTools> logger, NpgsqlConnection connection)
 {
     public const string ToolName = "ListColumns";
+    public const string PropertyName = "tableName";
+    public const string PropertyType = "string";
     public const string ToolDescription = "Lists all columns for a specified table in the SQL Server database.";
+    public const string PropertyDescription = "The name of the table to list columns for. Example: 'Customers'.";
 
     [Function(nameof(ListColumns))]
     public async Task<string> ListColumns(
@@ -25,17 +30,17 @@ public class SqlListColumnTools(ILogger<SqlListColumnTools> logger)
 
         try
         {
-            using var connection = new SqlConnection("YourConnectionStringHere");
-            await connection.OpenAsync();
-            var command = new SqlCommand(
-                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @table",
-                connection);
-            command.Parameters.AddWithValue("@table", tableName);
-            using var reader = await command.ExecuteReaderAsync();
-            var columns = new List<string>();
-            while (await reader.ReadAsync())
-                columns.Add(reader.GetString(0));
-            return columns.Count > 0 ? string.Join(", ", columns) : $"No columns found for table '{tableName}'.";
+            if (connection.State != System.Data.ConnectionState.Open)
+                await connection.OpenAsync();
+
+            var columns = (await connection.QueryAsync<string>(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = @table",
+                new { table = tableName }
+            )).ToList();
+
+            return columns.Count > 0
+                ? string.Join(", ", columns)
+                : $"No columns found for table '{tableName}'.";
         }
         catch (Exception ex)
         {

@@ -1,14 +1,19 @@
+using Dapper;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Extensions.Mcp;
-using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Mcp.Functions.Tools.SqlTools;
 
-public class SqlTableExistsTools(ILogger<SqlTableExistsTools> logger)
+public class SqlTableExistsTools(ILogger<SqlTableExistsTools> logger, NpgsqlConnection connection)
 {
     public const string ToolName = "TableExists";
     public const string ToolDescription = "Checks if a table exists in the SQL Server database.";
+    public const string PropertyType = "string";
+    public const string PropertyName = "tableName";
+    public const string PropertyDescription = "The name of the table to check for existence. Example: 'Customers'.";
 
     [Function(nameof(TableExists))]
     public async Task<string> TableExists(
@@ -25,13 +30,12 @@ public class SqlTableExistsTools(ILogger<SqlTableExistsTools> logger)
 
         try
         {
-            using var connection = new SqlConnection("YourConnectionStringHere");
-            await connection.OpenAsync();
-            var command = new SqlCommand(
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = @table",
-                connection);
-            command.Parameters.AddWithValue("@table", tableName);
-            int count = (int)await command.ExecuteScalarAsync();
+            if (connection.State != System.Data.ConnectionState.Open)
+                await connection.OpenAsync();
+
+            var sql = "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = @table";
+            int count = await connection.ExecuteScalarAsync<int>(sql, new { table = tableName });
+
             return count > 0 ? $"✅ Table '{tableName}' exists." : $"❌ Table '{tableName}' does not exist.";
         }
         catch (Exception ex)

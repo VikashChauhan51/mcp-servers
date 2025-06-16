@@ -1,11 +1,13 @@
+using Dapper;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Extensions.Mcp;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Mcp.Functions.Tools.SqlTools;
 
-public class SqlListTableTools(ILogger<SqlListTableTools> logger)
+public class SqlListTableTools(ILogger<SqlListTableTools> logger, NpgsqlConnection connection)
 {
     public const string ToolName = "ListTables";
     public const string ToolDescription = "Lists all tables in the connected SQL Server database.";
@@ -19,16 +21,19 @@ public class SqlListTableTools(ILogger<SqlListTableTools> logger)
         ToolInvocationContext context
     )
     {
+
         try
         {
-            using var connection = new SqlConnection("YourConnectionStringHere");
-            await connection.OpenAsync();
-            var command = new SqlCommand("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'", connection);
-            using var reader = await command.ExecuteReaderAsync();
-            var tables = new List<string>();
-            while (await reader.ReadAsync())
-                tables.Add(reader.GetString(0));
-            return tables.Count > 0 ? string.Join(", ", tables) : "No tables found.";
+            if (connection.State != System.Data.ConnectionState.Open)
+                await connection.OpenAsync();
+
+            var tables = (await connection.QueryAsync<string>(
+                "SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = 'public'"
+            )).ToList();
+
+            return tables.Count > 0
+                ? string.Join(", ", tables)
+                : "No tables found.";
         }
         catch (Exception ex)
         {
